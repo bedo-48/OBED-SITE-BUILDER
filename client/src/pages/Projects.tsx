@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Project } from '../types'
 import { dummyConversations, dummyProjects, dummyVersions } from '../assets/assets'
@@ -15,7 +15,7 @@ const Projects = () => {
   const [isGenerating, setIsGenerating] = useState(true)
   const [device, setDevice] = useState<'phone' | 'tablet' | 'desktop'>('desktop')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isSaving, setIsSaving] = useState(false)
+  const [isSaving] = useState(false)
 
   const previewRef = useRef<ProjectPreviewRef>(null)
 
@@ -129,7 +129,7 @@ element.click();
       </div>
 
       <div className='flex-1 flex overflow-auto'>
-        <Sidebar isMenuOpen={isMenuOpen} project={project} setProject={(p) => setProject(p)} isGenerating={isGenerating} setIsGenerating={setIsGenerating} />
+        <Sidebar isMenuOpen={isMenuOpen} project={project} isGenerating={isGenerating} setIsGenerating={setIsGenerating} />
         <div className='flex-1 p-2 pl-0'>
           <ProjectPreview ref={previewRef} project={project} isGenerating={isGenerating} device={device} />
         </div>

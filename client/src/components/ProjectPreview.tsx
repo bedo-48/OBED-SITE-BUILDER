@@ -1,10 +1,4 @@
-import React, {
-  forwardRef,
-  useRef,
-  useImperativeHandle,
-  useEffect,
-  useState,
-} from 'react';
+import { forwardRef, useRef, useImperativeHandle, useEffect, useState } from 'react';
 import type { Project } from '../types';
 import { iframeScript } from '../assets/assets';
 import EditorPanel from './EditorPanel';

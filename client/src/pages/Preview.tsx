@@ -7,7 +7,7 @@ import type { Project } from "../types";
 
 const Preview = () => {
 
-    const { projectId, versionId } = useParams();
+    const { projectId } = useParams();
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(true);
 

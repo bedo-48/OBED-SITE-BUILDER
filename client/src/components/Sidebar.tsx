@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, type FormEvent } from 'react'
 import type { Message, Project, Version } from "../types"
 import { BotIcon, EyeIcon, Loader2Icon, SendIcon, UserIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -6,19 +6,18 @@ import { Link } from 'react-router-dom';
 interface SidebarProps {
     isMenuOpen: boolean;
     project: Project;
-    setProject: (project: Project) => void;
     isGenerating: boolean;
     setIsGenerating: (isGenerating: boolean) => void;
 }
 
-const Sidebar = ({ isMenuOpen, project, setProject, isGenerating, setIsGenerating }: SidebarProps) => {
+const Sidebar = ({ isMenuOpen, project, isGenerating, setIsGenerating }: SidebarProps) => {
 
     const messageRef = useRef<HTMLDivElement>(null)
     const [input, setInput] = useState('')
 
-    const handleRollback = async (versionId: string) => {}
+    const handleRollback = async (_versionId: string) => {}
 
-    const handleRevisions = async (e: React.FormEvent) => {
+    const handleRevisions = async (e: FormEvent) => {
         e.preventDefault()
         setIsGenerating(true)
         setTimeout(() => {

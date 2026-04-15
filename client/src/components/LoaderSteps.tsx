@@ -30,11 +30,6 @@ const LoaderSteps = () => {
 
     }, [])
 
-    const Icon = steps[current].icon
-
-
-
-
   return (
     <div className="w-full h-full flex flex-col items-center justify-center bg-gray-950 relative overflow-hidden text-white">
 

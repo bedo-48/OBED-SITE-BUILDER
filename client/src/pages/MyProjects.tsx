@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Project } from '../types'
 import { Loader2Icon, PlusIcon, TrashIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -18,7 +18,7 @@ const MyProjects = () => {
         }, 1000)
     }
 
-    const deleteProject = async (projectId: string) => {
+    const deleteProject = async (_projectId: string) => {
 
     }
 
