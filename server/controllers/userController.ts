@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
 import openai from '../configs/openai.js';
 import { version } from 'node:os';
+import { timeStamp } from 'node:console';
 
 // get user credits
 
@@ -201,4 +202,81 @@ export const createUserProject = async (req: Request, res: Response) => {
         console.log(error);
         res.status(500).json({ message: error.message });
     }
+}
+
+
+// Controller Function to get a single user project
+
+export const getUserProject = async (req: Request, res: Response) => {
+    try {
+        const userId = req.userId;
+
+        if(!userId){
+            return res.status(401).json({message: 'Unauthorized'});
+        }
+
+        const {projectId} = req.params;
+
+        const project = await prisma.websiteProject.findFirst({
+            where: {
+                id: projectId,
+                userId
+            },
+            include: {
+                versions: true,
+                conversations: {
+                    orderBy: {
+                        timeStamp: 'asc'
+                    }
+                },
+
+                versions: {orderBy: {
+                        timeStamp: 'asc'
+                    }
+                },}
+            }
+        })
+
+        res.json({project });
+
+    } catch (error:any) {
+        console.log(error.code || error.message);
+        res.status(500).json({ message: error.message });
+    }
+}
+
+// Controller Function to get All Users Projects
+
+export const getUserProject = async (req: Request, res: Response) => {
+    try {
+        const userId = req.userId;
+
+        if(!userId){
+            return res.status(401).json({message: 'Unauthorized'});
+        }
+
+
+        const project = await prisma.websiteProject.findMany({
+            where: {
+               
+                userId
+            },
+            orderBy: {updateAt: 'desc'},
+           
+        })
+
+        res.json({project });
+
+    } catch (error:any) {
+        console.log(error.code || error.message);
+        res.status(500).json({ message: error.message });
+    }
+}
+
+// Controller Function to Toggle Project Publish
+
+export const purchaseCredits = async (req: Request, res: Response) => {
+    
+
+
 }
