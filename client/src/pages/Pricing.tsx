@@ -1,5 +1,9 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
 import { appPlans } from '../assets/assets';
+import api from '../lib/api'
+import { authClient } from '../lib/auth-client'
 import Footer from '../components/Footer';
 
 interface Plan {
@@ -9,14 +13,29 @@ interface Plan {
     credits: number;
     description: string;
     features: string[];
-    
+
 }
 
 const Pricing = () => {
     const [plans] = useState<Plan[]>(appPlans)
+    const navigate = useNavigate()
+    const { data: session } = authClient.useSession()
 
-    const handlePurchase = async (_planId: string) => {
-        
+    const handlePurchase = async (planId: string) => {
+        if (!session) {
+            toast.error('Please sign in to purchase credits')
+            return navigate('/auth/sign-in')
+        }
+        try {
+            const { data } = await api.post('/api/user/purchase-credits', { planId })
+            if (data.url) {
+                window.location.href = data.url // redirect to Stripe Checkout
+            } else {
+                toast.error('Could not start checkout')
+            }
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || error.message)
+        }
     }
 
 

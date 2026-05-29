@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import type { Project } from '../types'
 import { Loader2Icon, PlusIcon, TrashIcon } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
-import { dummyProjects } from '../assets/assets'
+import { toast } from 'sonner'
+import api from '../lib/api'
 import Footer from '../components/Footer'
 
 const MyProjects = () => {
@@ -11,15 +12,24 @@ const MyProjects = () => {
     const navigate = useNavigate()
 
     const fetchProjects = async () => {
-        setProjects(dummyProjects)
-
-        setTimeout(() => {
+        try {
+            const { data } = await api.get('/api/user/projects')
+            setProjects(data.projects || [])
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || error.message)
+        } finally {
             setLoading(false)
-        }, 1000)
+        }
     }
 
-    const deleteProject = async (_projectId: string) => {
-
+    const deleteProject = async (projectId: string) => {
+        try {
+            await api.delete(`/api/user/project/${projectId}`)
+            setProjects((prev) => prev.filter((p) => p.id !== projectId))
+            toast.success('Project deleted')
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || error.message)
+        }
     }
 
     useEffect(() => {
@@ -73,7 +83,7 @@ const MyProjects = () => {
                                                 <span className='text-xs text-gray-500'>{new Date(project.createdAt).toLocaleDateString()}</span>
                                                 <div className='flex gap-3 text-white text-sm'>
                                                     <button onClick={() => navigate(`/preview/${project.id}`)} className='px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-md transition-all'>Preview</button>
-                                                    <button onClick={() => navigate(`/project/${project.id}`)} className='px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-md transition-colors'>Open</button>
+                                                    <button onClick={() => navigate(`/projects/${project.id}`)} className='px-3 py-1.5 bg-white/10 hover:bg-white/15 rounded-md transition-colors'>Open</button>
                                                 </div>
                                             </div>
                                         </div>

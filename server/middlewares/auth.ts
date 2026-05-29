@@ -6,7 +6,7 @@ import {fromNodeHeaders } from 'better-auth/node'
 export const protect = async (req: Request, res: Response, next: NextFunction) => {
 
     try{
-        const session = await auth.api.getSesson({
+        const session = await auth.api.getSession({
             headers: fromNodeHeaders(req.headers)
         })
 

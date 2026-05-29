@@ -1,31 +1,37 @@
 import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
-import { dummyProjects } from "../assets/assets";
 import { Loader2Icon } from "lucide-react";
+import { toast } from "sonner";
+import api from "../lib/api";
 import ProjectPreview from "../components/ProjectPreview";
 import type { Project } from "../types";
 
 const Preview = () => {
 
-    const { projectId } = useParams();
+    const { projectId, versionId } = useParams();
     const [code, setCode] = useState('');
     const [loading, setLoading] = useState(true);
 
     const fetchCode = async () => {
-
-        const code = dummyProjects.find(project => project.id === projectId)?.current_code;
-
-        setTimeout(() => {
-            if (code) {
-                setCode(code);
-                setLoading(false);
+        try {
+            const { data } = await api.get(`/api/user/project/${projectId}`);
+            const project = data.project;
+            if (versionId) {
+                const version = project?.versions?.find((v: any) => v.id === versionId);
+                setCode(version?.code || project?.current_code || '');
+            } else {
+                setCode(project?.current_code || '');
             }
-        }, 2000);
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || error.message);
+        } finally {
+            setLoading(false);
+        }
     };
 
     useEffect(() => {
         fetchCode();
-    }, []);
+    }, [projectId, versionId]);
 
     if (loading) {
         return (
@@ -37,12 +43,16 @@ const Preview = () => {
 
     return (
         <div className="h-screen">
-            {code && (
+            {code ? (
                 <ProjectPreview
                     project={{ current_code: code } as Project}
                     isGenerating={false}
                     showEditorPanel={false}
                 />
+            ) : (
+                <div className="flex items-center justify-center h-screen text-gray-300">
+                    <p>No preview available</p>
+                </div>
             )}
         </div>
     );

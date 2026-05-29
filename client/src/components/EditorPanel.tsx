@@ -135,7 +135,7 @@ const EditorPanel = ({selectedElement, onUpdate, onClose} : EditorpanelProps) =>
             <input
             type='text'
             value={values.styles.fontSize }
-            onChange={(e) => handleStyleChange('margin', e.target.value )}
+            onChange={(e) => handleStyleChange('fontSize', e.target.value )}
             className='w-full text p-2 border border-gray-400 rounded-md focus:ring-2 focus:ring-indigo-500 outline-none'
             />
 

@@ -1,7 +1,8 @@
 import { useEffect, useState, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import type { Project } from '../types'
-import { dummyConversations, dummyProjects, dummyVersions } from '../assets/assets'
+import { toast } from 'sonner'
+import api, { API_BASE_URL } from '../lib/api'
 import { ArrowBigDownDashIcon, EyeIcon, EyeOffIcon, FullscreenIcon, LaptopIcon, Loader2Icon, MessageSquareIcon, SaveIcon, SmartphoneIcon, TabletIcon, XIcon } from 'lucide-react'
 import ProjectPreview, { type ProjectPreviewRef } from '../components/ProjectPreview'
 import Sidebar from '../components/Sidebar'
@@ -15,31 +16,100 @@ const Projects = () => {
   const [isGenerating, setIsGenerating] = useState(true)
   const [device, setDevice] = useState<'phone' | 'tablet' | 'desktop'>('desktop')
   const [isMenuOpen, setIsMenuOpen] = useState(false)
-  const [isSaving] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [streamingCode, setStreamingCode] = useState('')
 
   const previewRef = useRef<ProjectPreviewRef>(null)
+  const startedRef = useRef(false)
 
-  const fetchProject = async () => {
-    console.log('projectId from URL:', projectId)
-    console.log('available IDs:', dummyProjects.map(p => p.id))
-    console.log('projectId from URL:', projectId)
-    console.log('typeof projectId:', typeof projectId)
-    
-    const project = dummyProjects.find(p => String(p.id) === String(projectId))
-    console.log('found:', project)
-    
-    setTimeout(() => {
-        if (project) {
-            setProject({ ...project, conversation: dummyConversations, versions: dummyVersions })
-            setIsGenerating(project.current_code ? false : true)
+  const fetchProject = async (): Promise<Project | null> => {
+    try {
+      const { data } = await api.get(`/api/user/project/${projectId}`)
+      if (data.project) {
+        setProject(data.project)
+        setIsGenerating(!data.project.current_code)
+        return data.project
+      }
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error.message)
+    } finally {
+      setLoading(false)
+    }
+    return null
+  }
+
+  // Stream the initial generation, rendering the HTML live as it is produced
+  const streamGeneration = async () => {
+    setIsGenerating(true)
+    setStreamingCode('')
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/user/project/${projectId}/generate`, {
+        method: 'POST',
+        credentials: 'include',
+      })
+
+      // Already generated / in progress elsewhere → just load the result
+      if (!res.ok || !res.body) {
+        await fetchProject()
+        setIsGenerating(false)
+        return
+      }
+
+      const reader = res.body.getReader()
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let code = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+
+        const frames = buffer.split('\n\n')
+        buffer = frames.pop() || ''
+
+        for (const frame of frames) {
+          const eventLine = frame.split('\n').find((l) => l.startsWith('event:'))
+          const dataLine = frame.split('\n').find((l) => l.startsWith('data:'))
+          if (!dataLine) continue
+          const event = eventLine?.slice(6).trim()
+          const payload = JSON.parse(dataLine.slice(5).trim())
+
+          if (event === 'chunk') {
+            code += payload.delta
+            setStreamingCode(code)
+          } else if (event === 'done') {
+            await fetchProject()
+            setStreamingCode('')
+            setIsGenerating(false)
+          } else if (event === 'error') {
+            toast.error(payload.message || 'Generation failed')
+            setIsGenerating(false)
+          }
         }
-        setLoading(false)
-    }, 2000)
-}
+      }
+    } catch (error: any) {
+      toast.error(error?.message || 'Generation failed')
+      setIsGenerating(false)
+    }
+  }
 
 // download code (index.html)
 
-  const saveProject = async () => {}
+  const saveProject = async () => {
+    const code = previewRef.current?.getCode() || project?.current_code
+    if (!code || !projectId) return
+    try {
+      setIsSaving(true)
+      const { data } = await api.post(`/api/user/project/${projectId}/save`, { code })
+      setProject((prev) => (prev ? { ...prev, current_code: data.project.current_code } : prev))
+      toast.success('Project saved')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error.message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
   const downloadCode = () => {
 
     const code=previewRef.current?.getCode()  ||  project?.current_code;
@@ -69,10 +139,29 @@ element.click();
 
 
   
-  const togglePublish = async () => {}
+  const togglePublish = async () => {
+    if (!projectId) return
+    try {
+      const { data } = await api.get(`/api/user/publish-toggle/${projectId}`)
+      setProject((prev) => (prev ? { ...prev, isPublished: data.isPublished } : prev))
+      toast.success(data.isPublished ? 'Project published' : 'Project unpublished')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error.message)
+    }
+  }
 
   useEffect(() => {
-    fetchProject()
+    if (!projectId) return
+    startedRef.current = false
+    ;(async () => {
+      const p = await fetchProject()
+      // Brand-new project with no code yet → stream its generation live
+      if (p && !p.current_code && !startedRef.current) {
+        startedRef.current = true
+        streamGeneration()
+      }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId])
 
   if (loading) {
@@ -129,9 +218,15 @@ element.click();
       </div>
 
       <div className='flex-1 flex overflow-auto'>
-        <Sidebar isMenuOpen={isMenuOpen} project={project} isGenerating={isGenerating} setIsGenerating={setIsGenerating} />
+        <Sidebar isMenuOpen={isMenuOpen} project={project} setProject={setProject} isGenerating={isGenerating} setIsGenerating={setIsGenerating} />
         <div className='flex-1 p-2 pl-0'>
-          <ProjectPreview ref={previewRef} project={project} isGenerating={isGenerating} device={device} />
+          <ProjectPreview
+            ref={previewRef}
+            project={(isGenerating && streamingCode ? { ...project, current_code: streamingCode } : project) as Project}
+            isGenerating={isGenerating}
+            device={device}
+            showEditorPanel={!isGenerating}
+          />
         </div>
       </div>
     </div>

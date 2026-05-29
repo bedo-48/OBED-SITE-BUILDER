@@ -2,27 +2,46 @@ import { useEffect, useState, useRef, type FormEvent } from 'react'
 import type { Message, Project, Version } from "../types"
 import { BotIcon, EyeIcon, Loader2Icon, SendIcon, UserIcon } from 'lucide-react';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
+import api from '../lib/api';
 
 interface SidebarProps {
     isMenuOpen: boolean;
     project: Project;
+    setProject: (project: Project) => void;
     isGenerating: boolean;
     setIsGenerating: (isGenerating: boolean) => void;
 }
 
-const Sidebar = ({ isMenuOpen, project, isGenerating, setIsGenerating }: SidebarProps) => {
+const Sidebar = ({ isMenuOpen, project, setProject, isGenerating, setIsGenerating }: SidebarProps) => {
 
     const messageRef = useRef<HTMLDivElement>(null)
     const [input, setInput] = useState('')
 
-    const handleRollback = async (_versionId: string) => {}
+    const handleRollback = async (versionId: string) => {
+        try {
+            const { data } = await api.post(`/api/project/${project.id}/rollback/${versionId}`)
+            setProject({ ...project, current_code: data.project.current_code, current_version_index: data.project.current_version_index })
+            toast.success('Rolled back to selected version')
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || error.message)
+        }
+    }
 
     const handleRevisions = async (e: FormEvent) => {
         e.preventDefault()
+        if (!input.trim()) return
+        const message = input
+        setInput('')
         setIsGenerating(true)
-        setTimeout(() => {
+        try {
+            const { data } = await api.post(`/api/project/${project.id}/revision`, { message })
+            if (data.project) setProject(data.project)
+        } catch (error: any) {
+            toast.error(error?.response?.data?.message || error.message)
+        } finally {
             setIsGenerating(false)
-        }, 3000)
+        }
     }
 
     useEffect(() => {

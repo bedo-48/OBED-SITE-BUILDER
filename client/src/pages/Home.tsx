@@ -1,30 +1,43 @@
 import { Loader2Icon } from 'lucide-react';
 import { useState, type FormEvent } from 'react'
-
+import { useNavigate } from 'react-router-dom'
+import { toast } from 'sonner'
+import api from '../lib/api'
+import { authClient } from '../lib/auth-client'
 
 const Home = () => {
 
-     const [, setInput] = useState('');
-     const [loading, setLoading]= useState(false)
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false)
+  const navigate = useNavigate()
+  const { data: session } = authClient.useSession()
 
-
-     const onSubmitHandler = async (e: FormEvent) => {
+  const onSubmitHandler = async (e: FormEvent) => {
     e.preventDefault();
 
-    setLoading(true)
-    //Simulate API call
-    setTimeout(()=>{
-        setLoading(false)
-    },3000)
+    if (!input.trim()) return
 
+    if (!session) {
+      toast.error('Please sign in to create a project')
+      return navigate('/auth/sign-in')
+    }
 
+    try {
+      setLoading(true)
+      const { data } = await api.post('/api/user/project', { initial_prompt: input })
+      navigate(`/projects/${data.projectId}`)
+    } catch (error: any) {
+      toast.error(error?.response?.data?.message || error.message)
+    } finally {
+      setLoading(false)
+    }
   }
     return (
-        
 
-        
+
+
       <section className="flex flex-col items-center text-white text-sm pb-20 px-4 font-poppins">
-          
+
         <a href="https://prebuiltui.com" className="flex items-center gap-2 border border-slate-700 rounded-full p-1 pr-3 text-sm mt-20">
           <span className="bg-indigo-600 text-xs px-3 py-1 rounded-full">NEW</span>
           <p className="flex items-center gap-2">
@@ -42,14 +55,14 @@ const Home = () => {
         </p>
 
         <form onSubmit={onSubmitHandler} className="bg-white/10 max-w-2xl w-full rounded-xl p-4 mt-10 border border-indigo-600/70 focus-within:ring-2 ring-indigo-500 transition-all">
-          <textarea onChange={e => setInput(e.target.value)} className="bg-transparent outline-none text-gray-300 resize-none w-full" rows={4} placeholder="Describe your presentation in details" required />
-          <button className="ml-auto flex items-center gap-2 bg-gradient-to-r from-[#CB52D4] to-indigo-600 rounded-md px-4 py-2">
+          <textarea value={input} onChange={e => setInput(e.target.value)} className="bg-transparent outline-none text-gray-300 resize-none w-full" rows={4} placeholder="Describe your website in detail" required />
+          <button disabled={loading} className="ml-auto flex items-center gap-2 bg-gradient-to-r from-[#CB52D4] to-indigo-600 rounded-md px-4 py-2 disabled:opacity-60">
             {!loading ? 'Create with Obed-AI': (
                 <>
                 Creating<Loader2Icon  className='animate-spin size-4 text-white'/>
                 </>
             )}
-            
+
           </button>
         </form>
 
@@ -61,10 +74,10 @@ const Home = () => {
           <img className="max-w-28 md:max-w-32" src="https://saasly.prebuiltui.com/assets/companies-logo/walmart.svg" alt="" />
         </div>
       </section>
-   
+
   )
 }
-    
+
 
 
 export default Home
