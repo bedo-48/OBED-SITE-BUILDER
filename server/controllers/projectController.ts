@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import openai from '../configs/openai.js';
+import { aiChat, AI_MODEL, AI_MODELS } from '../configs/openai.js';
 
 const REVISION_COST = 5;
 
@@ -13,7 +13,7 @@ const cleanCode = (raw: string) =>
 export const makeRevision = async (req: Request, res: Response) => {
     const userId = req.userId;
     try {
-        const { projectId } = req.params;
+        const { projectId } = req.params as Record<string, string>;
         const { message } = req.body;
 
         if (!userId) {
@@ -47,8 +47,8 @@ export const makeRevision = async (req: Request, res: Response) => {
         });
 
         // ---- Step 1: enhance the revision request ----
-        const enhanceResponse = await openai.chat.completions.create({
-            model: 'z-ai/glm-4.5-air:free',
+        const enhanceResponse = await aiChat({
+            // modele et fallbacks: AI_MODELS
             messages: [
                 {
                     role: 'system',
@@ -69,8 +69,8 @@ Return ONLY the enhanced request, nothing else. Keep it concise (1-2 sentences).
         const enhancedRequest = enhanceResponse.choices[0].message.content || message;
 
         // ---- Step 2: generate the updated website code ----
-        const generationResponse = await openai.chat.completions.create({
-            model: 'z-ai/glm-4.5-air:free',
+        const generationResponse = await aiChat({
+            // modele et fallbacks: AI_MODELS
             messages: [
                 {
                     role: 'system',
@@ -93,7 +93,21 @@ Apply the requested changes while maintaining the Tailwind CSS styling approach.
             ],
         });
 
-        const code = cleanCode(generationResponse.choices[0].message.content || '');
+        const revisionMessage = generationResponse.choices[0].message as any;
+        const code = cleanCode(revisionMessage?.content || '');
+
+        // Une reponse vide ecrasait la version precedente par du vide.
+        if (!code) {
+            await prisma.user.update({
+                where: { id: userId },
+                data: { credits: { increment: REVISION_COST } },
+            }).catch(() => {});
+            return res.status(502).json({
+                message: revisionMessage?.reasoning
+                    ? `Le modele ${AI_MODEL} a repondu dans "reasoning" au lieu de "content". Change AI_MODEL dans server/.env.`
+                    : `Le modele ${AI_MODEL} n'a rien renvoye.`,
+            });
+        }
 
         // Save the new version and update the project
         const version = await prisma.version.create({
@@ -152,7 +166,7 @@ export const rollbackVersion = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        const { projectId, versionId } = req.params;
+        const { projectId, versionId } = req.params as Record<string, string>;
 
         const project = await prisma.websiteProject.findFirst({
             where: { id: projectId, userId },
@@ -203,7 +217,7 @@ export const getPublishedProjects = async (req: Request, res: Response) => {
 // ----------------------------------------------------------------------------
 export const getPublishedProject = async (req: Request, res: Response) => {
     try {
-        const { projectId } = req.params;
+        const { projectId } = req.params as Record<string, string>;
 
         const project = await prisma.websiteProject.findFirst({
             where: { id: projectId, isPublished: true },

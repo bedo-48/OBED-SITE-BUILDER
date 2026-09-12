@@ -23,6 +23,26 @@ interface EditorpanelProps{
 
 }
 
+// <input type="color"> n'accepte QUE du hexadecimal (#rrggbb). Or getComputedStyle
+// renvoie du "rgb(255, 0, 0)" ou "rgba(0, 0, 0, 0)". Sans conversion l'input
+// retombe silencieusement sur #000000 et l'utilisateur voit du noir partout.
+const toHexColor = (value: string | undefined): string => {
+    if (!value) return '#ffffff';
+    if (value.startsWith('#')) return value;
+
+    const nums = value.match(/\d+(\.\d+)?/g);
+    if (!nums || nums.length < 3) return '#ffffff';
+
+    // alpha a 0 => transparent, on affiche du blanc plutot que du noir
+    if (nums.length >= 4 && Number(nums[3]) === 0) return '#ffffff';
+
+    const hex = nums
+        .slice(0, 3)
+        .map((n) => Number(n).toString(16).padStart(2, '0'))
+        .join('');
+    return `#${hex}`;
+};
+
 const EditorPanel = ({selectedElement, onUpdate, onClose} : EditorpanelProps) => {
 
     const [values, setValues] = useState(selectedElement)
@@ -34,17 +54,13 @@ const EditorPanel = ({selectedElement, onUpdate, onClose} : EditorpanelProps) =>
 
     if(!selectedElement || !values) return null ;
 
-    const handleChange = (field:string, value:string) => {
-
-        const newValues = {...values, [field] : value};
-
-        if(field in values.styles){
-            newValues.styles={...values.styles, [field]:value }
-        }
-
-        setValues(newValues)
-        onUpdate({[field]: value});
-
+    // handleChange ne gere QUE les champs de premier niveau (text, className).
+    // L'ancienne version testait `field in values.styles` et, si c'etait vrai,
+    // ecrivait la valeur DEUX fois : une cle parasite a la racine de l'objet
+    // ET dans styles. Les styles ont deja leur propre fonction ci-dessous.
+    const handleChange = (field: 'text' | 'className', value: string) => {
+        setValues({ ...values, [field]: value });
+        onUpdate({ [field]: value });
     }
 
     const handleStyleChange = (styleName: string, value: string) => {
@@ -153,11 +169,15 @@ const EditorPanel = ({selectedElement, onUpdate, onClose} : EditorpanelProps) =>
             <div className='flex items-center gap-2 border border-gray-400 rounded-md p-1' >
 
                 <input
-                type='text'
-                value={values.styles.backgroundColor === 'rgba(0,0,0,0)' ? '#ffffff' : values.styles.backgroundColor}
+                type='color'
+                value={toHexColor(values.styles.backgroundColor)}
                 onChange={(e) => handleStyleChange('backgroundColor', e.target.value )}
                 className='w-6 h-6 rounded cursor-pointer'
                 />
+
+                <span className='text-xs text-gray-600 truncate'>
+                    {values.styles.backgroundColor}
+                </span>
 
             </div>
 
@@ -172,13 +192,13 @@ const EditorPanel = ({selectedElement, onUpdate, onClose} : EditorpanelProps) =>
 
                 <input
                 type='color'
-                value={values.styles.color}
+                value={toHexColor(values.styles.color)}
                 onChange={(e) => handleStyleChange('color', e.target.value )}
                 className='w-6 h-6 rounded cursor-pointer'
                 />
 
                 <span className='text-xs text-gray-600 truncate'>
-                    {values.styles.backgroundColor}
+                    {values.styles.color}
                 </span>
 
             </div>

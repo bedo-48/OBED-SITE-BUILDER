@@ -1,58 +1,57 @@
-import { CircleIcon, ScanLineIcon, SquareIcon, TriangleIcon } from "lucide-react"
-import { useEffect, useState } from "react"
+import { useEffect, useState } from 'react'
 
+interface Props {
+  /** Message envoye par le serveur via SSE (event: status) */
+  status: string
+  /** Nombre de caracteres de code deja recus */
+  chars: number
+}
 
-const steps = [
+/**
+ * Panneau affiche pendant la generation. Les anciennes etapes tournaient sur
+ * un minuteur factice et ne disaient rien de vrai. Ici tout vient du serveur :
+ * le message SSE, le compteur de caracteres, le temps ecoule.
+ */
+const GenerationStatus = ({ status, chars }: Props) => {
+  const [seconds, setSeconds] = useState(0)
 
-    {icon: ScanLineIcon, label:"Analyzing your request..." },
-    {icon: SquareIcon, label:"Generating layout structure..." },
-    {icon: TriangleIcon, label: " Assembling UI components..." },
-    {icon:  CircleIcon, label: " Finalizing your website..." },
-]
-
-
-
-const STEP_DURATION = 45000
-const LoaderSteps = () => {
-
-    const [current, setCurrent ] = useState(0)
-
-    useEffect(()=> {
-
-        const interval = setInterval(()=> {
-
-            setCurrent((s)=> (s+1) %steps.length )
-
-        }, STEP_DURATION);
-
-        return ()=> clearInterval(interval)
-
-
-    }, [])
+  useEffect(() => {
+    const id = setInterval(() => setSeconds((s) => s + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
 
   return (
-    <div className="w-full h-full flex flex-col items-center justify-center bg-gray-950 relative overflow-hidden text-white">
+    <div className="flex h-full w-full flex-col items-start justify-center gap-6 bg-panel px-10">
+      <div className="flex items-center gap-3">
+        <span className="size-2 animate-pulse rounded-full bg-brick" />
+        <p className="font-mono text-[11px] uppercase tracking-[0.14em] text-muted">
+          {status || 'Connecting to the model'}
+        </p>
+      </div>
 
-        <div className="absolute insert-0 bg-linear-to-br from-blue-500/10 via-purple-500/10 blur-3xl animate-pulse"></div>
+      <p className="max-w-md font-display text-4xl leading-tight text-ink">
+        {chars > 0 ? 'Code incoming.' : 'The model is thinking.'}
+      </p>
 
-        <div className="relative z-10 w-32 h-32 flex items-center justify-center">
-
-            <div className="absolute inset-0 rounded-full border border-indigo-400 animate-ping opacity-30 " />
-             <div className="absolute insert-4 rounded-full border border-purple-400/20" />
-
-            <div className="w-8 h-8 text-white opacity-80 animate-bounce " />
-            
-
+      <div className="w-full max-w-md">
+        <div className="h-px w-full bg-line">
+          <div
+            className="h-px bg-brick transition-all duration-300"
+            style={{ width: `${Math.min(100, (chars / 9000) * 100)}%` }}
+          />
         </div>
+        <div className="mt-3 flex justify-between font-mono text-[11px] text-muted">
+          <span>{chars.toLocaleString('en-US')} characters</span>
+          <span>{seconds}s</span>
+        </div>
+      </div>
 
-        {/*  STEP LABEL FADE USING TRANSITION ONLY (NO INVISIBLE START)       */}
-
-        <p key= {current} className="mt-8 text-lg font-light text-white/90 tracking-wide transition-all duration-700 ease-in-out opacity-100">{ steps[current].label}</p>
-
-        <p className="text-xs text-gray-400 mt-2 transition-opacity duration-700 opacity-100">This may take around 2-3 minutes...</p>
-      
+      <p className="max-w-sm text-[13px] leading-relaxed text-muted">
+        A full page takes one to two minutes. Do not reload, it would cut the
+        stream and burn the credits.
+      </p>
     </div>
   )
 }
 
-export default LoaderSteps
+export default GenerationStatus

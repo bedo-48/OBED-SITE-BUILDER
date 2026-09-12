@@ -6,6 +6,7 @@ import api, { API_BASE_URL } from '../lib/api'
 import { ArrowBigDownDashIcon, EyeIcon, EyeOffIcon, FullscreenIcon, LaptopIcon, Loader2Icon, MessageSquareIcon, SaveIcon, SmartphoneIcon, TabletIcon, XIcon } from 'lucide-react'
 import ProjectPreview, { type ProjectPreviewRef } from '../components/ProjectPreview'
 import Sidebar from '../components/Sidebar'
+import GenerationStatus from '../components/LoaderSteps'
 
 const Projects = () => {
   const { projectId } = useParams()
@@ -18,6 +19,7 @@ const Projects = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
   const [streamingCode, setStreamingCode] = useState('')
+  const [genStatus, setGenStatus] = useState('')
 
   const previewRef = useRef<ProjectPreviewRef>(null)
   const startedRef = useRef(false)
@@ -42,6 +44,7 @@ const Projects = () => {
   const streamGeneration = async () => {
     setIsGenerating(true)
     setStreamingCode('')
+    setGenStatus('')
     try {
       const res = await fetch(`${API_BASE_URL}/api/user/project/${projectId}/generate`, {
         method: 'POST',
@@ -60,6 +63,18 @@ const Projects = () => {
       let buffer = ''
       let code = ''
 
+      // <iframe srcDoc> reparse TOUT le document a chaque changement de la prop.
+      // Faire setStreamingCode() a chaque token SSE declenchait donc des
+      // centaines de reparse par seconde et faisait ramer l'onglet.
+      // On accumule dans une variable locale et on ne pousse dans le state
+      // qu'au maximum toutes les FLUSH_MS millisecondes.
+      const FLUSH_MS = 150
+      let lastFlush = 0
+      const flush = () => {
+        lastFlush = performance.now()
+        setStreamingCode(code)
+      }
+
       while (true) {
         const { done, value } = await reader.read()
         if (done) break
@@ -75,9 +90,11 @@ const Projects = () => {
           const event = eventLine?.slice(6).trim()
           const payload = JSON.parse(dataLine.slice(5).trim())
 
-          if (event === 'chunk') {
+          if (event === 'status') {
+            setGenStatus(payload.message || '')
+          } else if (event === 'chunk') {
             code += payload.delta
-            setStreamingCode(code)
+            if (performance.now() - lastFlush > FLUSH_MS) flush()
           } else if (event === 'done') {
             await fetchProject()
             setStreamingCode('')
@@ -111,34 +128,22 @@ const Projects = () => {
     }
   }
   const downloadCode = () => {
+    const code = previewRef.current?.getCode() || project?.current_code
+    if (!code) return
 
-    const code=previewRef.current?.getCode()  ||  project?.current_code;
+    // URL.createObjectURL alloue un blob qui reste en memoire jusqu'a ce qu'on
+    // appelle revokeObjectURL. L'ancienne version ne le revoquait jamais et
+    // laissait aussi le <a> dans le DOM a chaque telechargement : deux fuites.
+    const url = URL.createObjectURL(new Blob([code], { type: 'text/html' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'index.html'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  }
 
-    if(!code){
-
-    if(isGenerating){
-        return
-    }
-
-    return 
-}
-
-const element = document.createElement('a');
-const file = new Blob([code], {type: "text/html"});
-
-element.href = URL.createObjectURL(file)
-element.download="index.html";
-
-document.body.appendChild(element)
-element.click();
-
-
-
-
-}
-
-
-  
   const togglePublish = async () => {
     if (!projectId) return
     try {
@@ -220,6 +225,9 @@ element.click();
       <div className='flex-1 flex overflow-auto'>
         <Sidebar isMenuOpen={isMenuOpen} project={project} setProject={setProject} isGenerating={isGenerating} setIsGenerating={setIsGenerating} />
         <div className='flex-1 p-2 pl-0'>
+          {isGenerating && !streamingCode ? (
+            <GenerationStatus status={genStatus} chars={streamingCode.length} />
+          ) : (
           <ProjectPreview
             ref={previewRef}
             project={(isGenerating && streamingCode ? { ...project, current_code: streamingCode } : project) as Project}
@@ -227,6 +235,7 @@ element.click();
             device={device}
             showEditorPanel={!isGenerating}
           />
+          )}
         </div>
       </div>
     </div>

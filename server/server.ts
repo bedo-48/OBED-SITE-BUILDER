@@ -8,7 +8,7 @@ import projectRouter from "./routes/projectRoutes";
 import { stripeWebhook } from "./controllers/stripeController";
 
 const app = express();
-const port = 3000;
+const port = Number(process.env.PORT) || 3000;
 
 // CORS (must allow credentials so auth cookies are sent)
 const corsOptions = {

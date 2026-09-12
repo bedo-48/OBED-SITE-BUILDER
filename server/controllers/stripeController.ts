@@ -29,20 +29,36 @@ export const stripeWebhook = async (req: Request, res: Response) => {
             const { transactionId, userId, credits } = session.metadata || {};
 
             if (transactionId && userId && credits) {
-                const transaction = await prisma.transaction.findUnique({
-                    where: { id: transactionId },
-                });
-
-                // Idempotency: only credit once
-                if (transaction && !transaction.isPaid) {
-                    await prisma.transaction.update({
-                        where: { id: transactionId },
+                // Idempotency, atomic version.
+                //
+                // The previous code read the row (findUnique), then wrote it
+                // (update). Between those two awaits the event loop can run
+                // another webhook handler for the SAME transaction: both read
+                // isPaid === false, both credit the user. Classic TOCTOU
+                // (time-of-check to time-of-use) race.
+                //
+                // Fix: let the DATABASE decide the winner. `updateMany` with
+                // `isPaid: false` in the WHERE clause is a single atomic
+                // statement: the first webhook matches 1 row and flips the
+                // flag, every duplicate matches 0 rows. Both writes run inside
+                // one transaction so the flag and the credits can never diverge.
+                const granted = await prisma.$transaction(async (tx) => {
+                    const claim = await tx.transaction.updateMany({
+                        where: { id: transactionId, isPaid: false },
                         data: { isPaid: true },
                     });
-                    await prisma.user.update({
+
+                    if (claim.count !== 1) return false; // deja traite
+
+                    await tx.user.update({
                         where: { id: userId },
                         data: { credits: { increment: Number(credits) } },
                     });
+                    return true;
+                });
+
+                if (!granted) {
+                    console.log(`Duplicate webhook ignored for transaction ${transactionId}`);
                 }
             }
         }

@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import prisma from '../lib/prisma.js';
-import openai from '../configs/openai.js';
+import { aiChat, AI_MODEL, AI_MODELS } from '../configs/openai.js';
 import stripe from '../configs/stripe.js';
 
 // Credit costs / pricing config
@@ -201,7 +201,7 @@ const generatingProjects = new Set<string>();
 // ----------------------------------------------------------------------------
 export const generateProject = async (req: Request, res: Response) => {
     const userId = req.userId;
-    const { projectId } = req.params;
+    const { projectId } = req.params as Record<string, string>;
 
     if (!userId) {
         return res.status(401).json({ message: 'Unauthorized' });
@@ -236,9 +236,13 @@ export const generateProject = async (req: Request, res: Response) => {
 
     try {
         // ---- Step 1: enhance the user prompt ----
+        // Chaque generation coute deux appels au fournisseur. Sur un endpoint
+        // gratuit, AI_ENHANCE=false divise la consommation par deux.
+        let enhancedPromptStep = project.initial_prompt;
+        if (process.env.AI_ENHANCE !== 'false') {
         send('status', { message: 'Enhancing your prompt...' });
-        const enhanceResponse = await openai.chat.completions.create({
-            model: 'z-ai/glm-4.5-air:free',
+        const enhanceResponse = await aiChat({
+            // modele et fallbacks: AI_MODELS
             messages: [
                 {
                     role: 'system',
@@ -258,20 +262,22 @@ Return ONLY the enhanced prompt, nothing else. Make it detailed but concise (2-3
             ],
         });
 
-        const enhancedPrompt = enhanceResponse.choices[0].message.content || project.initial_prompt;
+        enhancedPromptStep = enhanceResponse.choices[0].message.content || project.initial_prompt;
 
         await prisma.conversation.create({
             data: {
                 role: 'assistant',
-                content: `I've enhanced your prompt to: "${enhancedPrompt}"`,
+                content: `I've enhanced your prompt to: "${enhancedPromptStep}"`,
                 projectId: project.id,
             },
         });
+        }
+        const enhancedPrompt = enhancedPromptStep;
 
         // ---- Step 2: stream the generated website code ----
         send('status', { message: 'Generating your website...' });
-        const stream = await openai.chat.completions.create({
-            model: 'z-ai/glm-4.5-air:free',
+        const stream = await aiChat({
+            // modele et fallbacks: AI_MODELS
             stream: true,
             messages: [
                 {
@@ -306,8 +312,15 @@ The HTML should be complete and ready to render as-is with Tailwind CSS.`,
         });
 
         let rawCode = '';
+        let reasoningChars = 0;
+        let finishReason = '';
         for await (const part of stream) {
-            const delta = part.choices[0]?.delta?.content || '';
+            const choice = part.choices[0];
+            // Certains modeles renvoient leur texte dans `reasoning` au lieu de
+            // `content`. On le compte pour pouvoir diagnostiquer une sortie vide.
+            reasoningChars += ((choice?.delta as any)?.reasoning || '').length;
+            if (choice?.finish_reason) finishReason = choice.finish_reason;
+            const delta = choice?.delta?.content || '';
             if (delta) {
                 rawCode += delta;
                 send('chunk', { delta });
@@ -315,6 +328,19 @@ The HTML should be complete and ready to render as-is with Tailwind CSS.`,
         }
 
         const code = cleanCode(rawCode);
+
+        // Sans ce garde-fou, une reponse vide etait enregistree comme une
+        // version valide : le projet paraissait genere et l'apercu restait blanc.
+        if (!code) {
+            throw new Error(
+                reasoningChars > 0
+                    ? `Le modele ${AI_MODEL} a mis ses ${reasoningChars} caracteres dans le champ "reasoning" et rien dans "content". Change AI_MODEL dans server/.env pour un modele sans raisonnement.`
+                    : `Le modele ${AI_MODEL} n'a rien renvoye (finish_reason: ${finishReason || 'inconnu'}).`
+            );
+        }
+        if (finishReason === 'length') {
+            console.log(`[generate] sortie tronquee (${code.length} caracteres), le modele a atteint sa limite de tokens`);
+        }
 
         // Persist the first version and update the project
         const version = await prisma.version.create({
@@ -341,7 +367,12 @@ The HTML should be complete and ready to render as-is with Tailwind CSS.`,
             where: { id: userId },
             data: { credits: { increment: PROJECT_CREATION_COST } },
         }).catch(() => {});
-        console.log(error);
+        // Le corps de la reponse OpenRouter porte la vraie cause (cle invalide,
+        // quota epuise, modele indisponible pour ta data policy).
+        console.log('[generate] echec:', error.status || '', error.message);
+        if (error.error || error.response?.data) {
+            console.log('[generate] reponse du fournisseur:', JSON.stringify(error.error || error.response?.data));
+        }
         send('error', { message: error.message });
     } finally {
         generatingProjects.delete(projectId);
@@ -360,7 +391,7 @@ export const getUserProject = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        const { projectId } = req.params;
+        const { projectId } = req.params as Record<string, string>;
 
         const project = await prisma.websiteProject.findFirst({
             where: {
@@ -421,7 +452,7 @@ export const saveProject = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        const { projectId } = req.params;
+        const { projectId } = req.params as Record<string, string>;
         const { code } = req.body;
 
         if (!code) {
@@ -461,7 +492,7 @@ export const deleteProject = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        const { projectId } = req.params;
+        const { projectId } = req.params as Record<string, string>;
 
         const project = await prisma.websiteProject.findFirst({
             where: { id: projectId, userId },
@@ -490,7 +521,7 @@ export const togglePublish = async (req: Request, res: Response) => {
             return res.status(401).json({ message: 'Unauthorized' });
         }
 
-        const { projectId } = req.params;
+        const { projectId } = req.params as Record<string, string>;
 
         const project = await prisma.websiteProject.findFirst({
             where: { id: projectId, userId },

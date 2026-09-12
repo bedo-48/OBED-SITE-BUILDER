@@ -1,24 +1,37 @@
-import { Loader2Icon } from 'lucide-react';
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import api from '../lib/api'
 import { authClient } from '../lib/auth-client'
+import Footer from '../components/Footer'
+
+const rotating = ['a portfolio', 'a landing page', 'a restaurant site', 'a store front']
+
+const examples = [
+  'Landing page for a coffee shop in Kinshasa, with menu and opening hours',
+  'Photographer portfolio, grid gallery and a contact page',
+  'Launch page for a ride-sharing mobile app',
+]
 
 const Home = () => {
-
-  const [input, setInput] = useState('');
+  const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [word, setWord] = useState(0)
   const navigate = useNavigate()
   const { data: session } = authClient.useSession()
 
-  const onSubmitHandler = async (e: FormEvent) => {
-    e.preventDefault();
+  // Le mot tourne toutes les 2,2 secondes. C'est le seul mouvement de la page.
+  useEffect(() => {
+    const id = setInterval(() => setWord((w) => (w + 1) % rotating.length), 2200)
+    return () => clearInterval(id)
+  }, [])
 
+  const onSubmitHandler = async (e: FormEvent) => {
+    e.preventDefault()
     if (!input.trim()) return
 
     if (!session) {
-      toast.error('Please sign in to create a project')
+      toast.error('Sign in to create a site')
       return navigate('/auth/sign-in')
     }
 
@@ -32,52 +45,86 @@ const Home = () => {
       setLoading(false)
     }
   }
-    return (
 
+  return (
+    <>
+      <section className="relative overflow-hidden">
+        <div className="grid-bg pointer-events-none absolute inset-0 -z-10" />
+        <div className="glow pointer-events-none absolute -top-40 left-1/4 -z-10 h-[420px] w-[620px]" />
 
+        <div className="mx-auto max-w-5xl px-5 pt-20 pb-14 md:px-10 md:pt-28">
+          <div className="flex items-center gap-2">
+            <span className="size-1.5 animate-pulse rounded-full bg-brick" />
+            <p className="label">Generation engine online</p>
+          </div>
 
-      <section className="flex flex-col items-center text-white text-sm pb-20 px-4 font-poppins">
+          <h1 className="tight mt-6 max-w-4xl font-display text-5xl font-semibold leading-[0.98] md:text-[86px]">
+            Write one sentence.
+            <br />
+            Walk away with a <span className="text-brick">site</span>.
+          </h1>
 
-        <a href="https://prebuiltui.com" className="flex items-center gap-2 border border-slate-700 rounded-full p-1 pr-3 text-sm mt-20">
-          <span className="bg-indigo-600 text-xs px-3 py-1 rounded-full">NEW</span>
-          <p className="flex items-center gap-2">
-            <span>Try 30 days free trial option</span>
-            <svg className="mt-px" width="6" height="9" viewBox="0 0 6 9" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="m1 1 4 3.5L1 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          <p className="mt-7 flex flex-wrap items-baseline gap-x-2 font-mono text-[13px] text-muted">
+            <span>Right now, someone is generating</span>
+            <span key={word} className="animate-rise text-ink">{rotating[word]}</span>
           </p>
-        </a>
 
-        <h1 className="text-center text-[40px] leading-[48px] md:text-6xl md:leading-[70px] mt-4 font-semibold max-w-3xl">
-          Turn thoughts into websites instantly, with AI.
-        </h1>
+          <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-muted">
+            The code streams in as it is written. A complete Tailwind page,
+            in a single file, yours to keep.
+          </p>
 
-        <p className="text-center text-base max-w-md mt-2">
-          Create, customize and publish website faster than ever with our Obed-AI Site Builder.
-        </p>
+          <form onSubmit={onSubmitHandler} className="ticks card relative mt-12 max-w-3xl p-4">
+            <textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              rows={4}
+              required
+              placeholder="A site for..."
+              className="w-full resize-none bg-transparent font-mono text-[14px] outline-none placeholder:text-muted/50"
+            />
+            <div className="mt-3 flex items-center justify-between gap-4 border-t border-line pt-3">
+              <span className="label">5 credits per generation</span>
+              <button disabled={loading} className="btn-primary">
+                {loading ? 'Sending...' : 'Generate'}
+              </button>
+            </div>
+          </form>
 
-        <form onSubmit={onSubmitHandler} className="bg-white/10 max-w-2xl w-full rounded-xl p-4 mt-10 border border-indigo-600/70 focus-within:ring-2 ring-indigo-500 transition-all">
-          <textarea value={input} onChange={e => setInput(e.target.value)} className="bg-transparent outline-none text-gray-300 resize-none w-full" rows={4} placeholder="Describe your website in detail" required />
-          <button disabled={loading} className="ml-auto flex items-center gap-2 bg-gradient-to-r from-[#CB52D4] to-indigo-600 rounded-md px-4 py-2 disabled:opacity-60">
-            {!loading ? 'Create with Obed-AI': (
-                <>
-                Creating<Loader2Icon  className='animate-spin size-4 text-white'/>
-                </>
-            )}
-
-          </button>
-        </form>
-
-        <div className="flex flex-wrap items-center justify-center gap-16 md:gap-20 mx-auto mt-16">
-          <img className="max-w-28 md:max-w-32" src="https://saasly.prebuiltui.com/assets/companies-logo/framer.svg" alt="" />
-          <img className="max-w-28 md:max-w-32" src="https://saasly.prebuiltui.com/assets/companies-logo/huawei.svg" alt="" />
-          <img className="max-w-28 md:max-w-32" src="https://saasly.prebuiltui.com/assets/companies-logo/instagram.svg" alt="" />
-          <img className="max-w-28 md:max-w-32" src="https://saasly.prebuiltui.com/assets/companies-logo/microsoft.svg" alt="" />
-          <img className="max-w-28 md:max-w-32" src="https://saasly.prebuiltui.com/assets/companies-logo/walmart.svg" alt="" />
+          <div className="mt-5 flex max-w-3xl flex-wrap gap-2">
+            {examples.map((ex) => (
+              <button
+                key={ex}
+                type="button"
+                onClick={() => setInput(ex)}
+                className="rounded-sm border border-line px-3 py-1.5 text-left font-mono text-[12px] text-muted transition hover:border-brick hover:text-ink"
+              >
+                {ex}
+              </button>
+            ))}
+          </div>
         </div>
       </section>
 
+      <section className="mx-auto max-w-5xl border-t border-line px-5 py-14 md:px-10">
+        <div className="grid gap-px overflow-hidden border border-line bg-line md:grid-cols-3">
+          {[
+            { k: '01', t: 'Streaming', d: 'The HTML shows up while the model writes it. No blind waiting.' },
+            { k: '02', t: 'Versions', d: 'Every revision creates a version. Roll back whenever you want.' },
+            { k: '03', t: 'Export', d: 'A standalone index.html you can download and host anywhere.' },
+          ].map((f) => (
+            <div key={f.k} className="bg-panel p-6">
+              <p className="label">{f.k}</p>
+              <p className="mt-4 font-display text-xl font-medium tracking-tight">{f.t}</p>
+              <p className="mt-2 text-[14px] leading-relaxed text-muted">{f.d}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <Footer />
+    </>
   )
 }
-
-
 
 export default Home

@@ -50,9 +50,16 @@ const ProjectPreview = forwardRef<ProjectPreviewRef, ProjectPreviewProps>(
 
     useEffect(() => {
       const handleMessage = (event: MessageEvent) => {
-        if (event.data.type === 'ELEMENT_SELECTED') {
+        // On n'accepte que les messages venant de NOTRE iframe de preview.
+        // Sans ce test, n'importe quelle page ouverte, extension ou popup peut
+        // envoyer un faux ELEMENT_SELECTED et injecter des donnees dans l'etat
+        // de l'editeur. C'est la regle numero un de postMessage : toujours
+        // valider event.source (et event.origin quand l'iframe a une vraie URL).
+        if (event.source !== iframeRef.current?.contentWindow) return;
+
+        if (event.data?.type === 'ELEMENT_SELECTED') {
           setSelectedElement(event.data.payload);
-        } else if (event.data.type === 'CLEAR_SELECTION') {
+        } else if (event.data?.type === 'CLEAR_SELECTION') {
           setSelectedElement(null);
         }
       };
